@@ -1,0 +1,1 @@
+import EditScreenInfo from '@/components/EditScreenInfo';  // Dette vil give en fejl 
