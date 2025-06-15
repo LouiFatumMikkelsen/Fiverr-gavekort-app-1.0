@@ -10,6 +10,7 @@ import {
   Modal,
   Easing,
   Pressable,
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -86,6 +87,35 @@ export default function GiftCardListScreen() {
       setBottomSheetVisible(false);
       setSelectedCard(null);
     });
+  };
+
+  const deleteSelectedCard = async () => {
+    if (!selectedCard) return;
+    Alert.alert(
+      "Slet gavekort",
+      `Er du sikker på, at du vil slette gavekortet til ${selectedCard.store}?`,
+      [
+        { text: "Annuller", style: "cancel" },
+        {
+          text: "Slet",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const storedCards = await AsyncStorage.getItem("giftCards");
+              if (storedCards) {
+                const cards = JSON.parse(storedCards);
+                const updatedCards = cards.filter((c: GiftCard) => c.id !== selectedCard.id);
+                await AsyncStorage.setItem("giftCards", JSON.stringify(updatedCards));
+                setGiftCards(updatedCards);
+                closeBottomSheet();
+              }
+            } catch (error) {
+              Alert.alert("Fejl", "Kunne ikke slette gavekortet");
+            }
+          }
+        }
+      ]
+    );
   };
 
   const renderItem = ({ item }: { item: GiftCard }) => (
@@ -184,6 +214,10 @@ export default function GiftCardListScreen() {
                 </View>
               </View>
             </View>
+            <TouchableOpacity style={styles.deleteButton} onPress={deleteSelectedCard}>
+              <MaterialIcons name="delete" size={20} color="#fff" />
+              <Text style={styles.deleteButtonText}>Slet gavekort</Text>
+            </TouchableOpacity>
           </Animated.View>
         </View>
       </Modal>
@@ -402,5 +436,21 @@ const styles = StyleSheet.create({
     color: "#7f8c8d",
     marginTop: 8,
     textAlign: 'center',
+  },
+  deleteButton: {
+    backgroundColor: '#e74c3c',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    margin: 24,
+    marginTop: 0,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
