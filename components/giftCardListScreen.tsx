@@ -10,7 +10,8 @@ import {
   Modal,
   Easing,
   Pressable,
-  Alert,
+  Image,
+  ImageBackground,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -31,6 +32,39 @@ interface GiftCard {
   type: "qr" | "bar";
   raw: string;
   dateAdded: string;
+  expiryDate?: string;
+}
+
+// Liste over populære butikker og deres domæner og farver
+const storeDomains: { name: string; domain: string; color: string[] }[] = [
+  { name: 'Matas', domain: 'matas.dk', color: ['#1e3a8a', '#3498db'] },
+  { name: 'H&M', domain: 'hm.com', color: ['#b91c1c', '#f87171'] },
+  { name: 'Zalando', domain: 'zalando.dk', color: ['#ff6900', '#ffb380'] },
+  { name: 'Magasin', domain: 'magasin.dk', color: ['#1e293b', '#64748b'] },
+  { name: 'Bilka', domain: 'bilka.dk', color: ['#0369a1', '#60a5fa'] },
+  { name: 'Føtex', domain: 'foetex.dk', color: ['#0f172a', '#334155'] },
+  { name: 'Netto', domain: 'netto.dk', color: ['#fde047', '#facc15'] },
+  { name: 'Rema 1000', domain: 'rema1000.dk', color: ['#2563eb', '#60a5fa'] },
+  { name: 'Normal', domain: 'normal.dk', color: ['#0d9488', '#5eead4'] },
+  { name: 'Imerco', domain: 'imerco.dk', color: ['#334155', '#cbd5e1'] },
+  { name: 'Lidl', domain: 'lidl.dk', color: ['#1e40af', '#facc15'] },
+  { name: 'Boulders', domain: 'boulders.dk', color: ['#f97316', '#fbbf24'] },
+  // Tilføj flere efter behov
+];
+
+function getStoreData(storeName: string) {
+  if (!storeName) return null;
+  const lower = storeName.toLowerCase();
+  let bestMatch = null;
+  let bestScore = 0;
+  for (const s of storeDomains) {
+    const score = s.name.toLowerCase() === lower ? 2 : s.name.toLowerCase().includes(lower) || lower.includes(s.name.toLowerCase()) ? 1 : 0;
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = s;
+    }
+  }
+  return bestMatch;
 }
 
 export default function GiftCardListScreen() {
@@ -89,47 +123,33 @@ export default function GiftCardListScreen() {
     });
   };
 
-  const deleteSelectedCard = async () => {
-    if (!selectedCard) return;
-    Alert.alert(
-      "Slet gavekort",
-      `Er du sikker på, at du vil slette gavekortet til ${selectedCard.store}?`,
-      [
-        { text: "Annuller", style: "cancel" },
-        {
-          text: "Slet",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const storedCards = await AsyncStorage.getItem("giftCards");
-              if (storedCards) {
-                const cards = JSON.parse(storedCards);
-                const updatedCards = cards.filter((c: GiftCard) => c.id !== selectedCard.id);
-                await AsyncStorage.setItem("giftCards", JSON.stringify(updatedCards));
-                setGiftCards(updatedCards);
-                closeBottomSheet();
-              }
-            } catch (error) {
-              Alert.alert("Fejl", "Kunne ikke slette gavekortet");
-            }
-          }
-        }
-      ]
-    );
+  const deleteCard = async (id: string) => {
+    const updatedCards = giftCards.filter(card => card.id !== id);
+    setGiftCards(updatedCards);
+    await AsyncStorage.setItem("giftCards", JSON.stringify(updatedCards));
+    closeBottomSheet();
   };
 
-  const renderItem = ({ item }: { item: GiftCard }) => (
-    <TouchableOpacity onPress={() => openBottomSheet(item)} activeOpacity={0.92} style={styles.cardContainer}>
-      <LinearGradient
-        colors={['#2c3e50', '#3498db']}
-        style={styles.card}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <Text style={styles.cardStore} numberOfLines={1} ellipsizeMode="tail">{item.store}</Text>
-      </LinearGradient>
-    </TouchableOpacity>
-  );
+  const renderItem = ({ item }: { item: GiftCard }) => {
+    const storeData = getStoreData(item.store);
+    const logoUrl = storeData ? `https://img.logo.dev/${storeData.domain}?token=pk_HJ2cYOIQThSJBu9IIq_ang` : null;
+    const gradientColors = storeData ? storeData.color : ['#2c3e50', '#3498db'];
+    return (
+      <TouchableOpacity onPress={() => openBottomSheet(item)} activeOpacity={0.92} style={styles.cardContainer}>
+        <LinearGradient
+          colors={gradientColors}
+          style={styles.card}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          {logoUrl ? (
+            <Image source={{ uri: logoUrl }} style={styles.cardLogo} resizeMode="contain" />
+          ) : null}
+          <Text style={styles.cardStore} numberOfLines={1} ellipsizeMode="tail">{item.store}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  };
 
   const renderBottomSheet = () => {
     if (!selectedCard) return null;
@@ -212,12 +232,17 @@ export default function GiftCardListScreen() {
                     Tilføjet: {new Date(selectedCard.dateAdded).toLocaleDateString()}
                   </Text>
                 </View>
+                <View style={styles.detailRow}>
+                  <MaterialIcons name="event-available" size={20} color="#2c3e50" />
+                  <Text style={styles.detailText}>
+                    Udløber: {selectedCard.expiryDate ? new Date(selectedCard.expiryDate).toLocaleDateString('da-DK') : '-'}
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.deleteButton} onPress={() => deleteCard(selectedCard.id)}>
+                  <Text style={styles.deleteButtonText}>Slet gavekort</Text>
+                </TouchableOpacity>
               </View>
             </View>
-            <TouchableOpacity style={styles.deleteButton} onPress={deleteSelectedCard}>
-              <MaterialIcons name="delete" size={20} color="#fff" />
-              <Text style={styles.deleteButtonText}>Slet gavekort</Text>
-            </TouchableOpacity>
           </Animated.View>
         </View>
       </Modal>
@@ -307,16 +332,20 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
     height: 100,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  cardLogo: {
+    width: 36,
+    height: 36,
+    marginBottom: 8,
+    borderRadius: 8,
   },
   cardStore: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#fff',
-    marginBottom: 0,
     textAlign: 'center',
   },
   modalOverlay: {
@@ -438,19 +467,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   deleteButton: {
-    backgroundColor: '#e74c3c',
-    flexDirection: 'row',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#f87171',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    margin: 24,
-    marginTop: 0,
+    marginTop: 16,
   },
   deleteButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-    marginLeft: 8,
+    color: '#fff',
   },
 });

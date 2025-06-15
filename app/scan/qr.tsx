@@ -13,6 +13,39 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useCameraPermissions, CameraView } from "expo-camera";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useIsFocused } from "@react-navigation/native";
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+function FloatingLabelInput({ label, value, onChangeText, ...props }: { label: string; value: string; onChangeText: (text: string) => void; [key: string]: any }) {
+  const [isFocused, setIsFocused] = useState(false);
+  const showLabel = isFocused || value;
+  return (
+    <View style={{ marginVertical: 12 }}>
+      <Text
+        style={{
+          position: 'absolute',
+          left: 14,
+          top: showLabel ? 2 : 20,
+          fontSize: showLabel ? 13 : 17,
+          color: showLabel ? '#007AFF' : '#888',
+          backgroundColor: showLabel ? '#fff' : 'transparent',
+          paddingHorizontal: 2,
+          zIndex: 2,
+          fontWeight: showLabel ? '600' : '400',
+        }}
+      >
+        {label}
+      </Text>
+      <TextInput
+        style={styles.floatingInput}
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        {...props}
+      />
+    </View>
+  );
+}
 
 export default function QRScreen() {
   const router = useRouter();
@@ -24,6 +57,8 @@ export default function QRScreen() {
   const [amount, setAmount] = useState("");
   const [code, setCode] = useState("");
   const [codeType, setCodeType] = useState("");
+  const [expiryDate, setExpiryDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const cameraRef = useRef<CameraView>(null);
   const isFocused = useIsFocused();
@@ -44,7 +79,7 @@ export default function QRScreen() {
     );
   }
 
-  const handleBarCodeScanned = async ({ data, type }) => {
+  const handleBarCodeScanned = async ({ data, type }: { data: string; type: string }) => {
     if (!scanned) {
       setScanned(true);
 
@@ -85,6 +120,7 @@ export default function QRScreen() {
         raw: scannedData,
         dateAdded: new Date().toISOString(),
         type: codeType,
+        expiryDate: expiryDate.toISOString(),
       };
       console.log("new card :", newCard);
 
@@ -147,24 +183,45 @@ export default function QRScreen() {
             <Text style={{ marginBottom: 8, fontSize: 12, color: "#666" }}>
               Rå data: {scannedData}
             </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Butik"
+            <FloatingLabelInput
+              label="Butik"
               value={store}
               onChangeText={setStore}
+              autoCapitalize="words"
             />
-            <TextInput
-              style={styles.input}
-              placeholder="Beløb"
+            <FloatingLabelInput
+              label="Beløb"
               value={amount}
               onChangeText={setAmount}
+              keyboardType="numeric"
             />
-            <TextInput
-              style={styles.input}
-              placeholder="Kode"
+            <FloatingLabelInput
+              label="Kode"
               value={code}
               onChangeText={setCode}
+              autoCapitalize="none"
             />
+            <TouchableOpacity
+              style={styles.dateInput}
+              onPress={() => setShowDatePicker(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={expiryDate ? styles.dateLabelActive : styles.dateLabel}>Udløbsdato</Text>
+              <Text style={styles.dateValue}>{expiryDate.toLocaleDateString('da-DK')}</Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={expiryDate}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(false);
+                  if (selectedDate) setExpiryDate(selectedDate);
+                }}
+                minimumDate={new Date()}
+                locale="da-DK"
+              />
+            )}
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.modalButtonCancel}
@@ -250,44 +307,84 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: "#fff",
-    padding: 24,
-    borderRadius: 12,
-    width: "80%",
+    padding: 32,
+    borderRadius: 16,
+    width: "88%",
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 4,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
-    marginBottom: 12,
+    marginBottom: 18,
   },
-  input: {
+  floatingInput: {
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 8,
-    marginVertical: 4,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    fontSize: 17,
+    backgroundColor: '#f8f9fa',
+    color: '#222',
   },
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 16,
+    marginTop: 24,
   },
   modalButtonCancel: {
     flex: 1,
     marginRight: 8,
-    backgroundColor: "#ccc",
-    padding: 12,
+    backgroundColor: "#f3f4f6",
+    padding: 16,
     borderRadius: 8,
   },
   modalButtonSave: {
     flex: 1,
     marginLeft: 8,
     backgroundColor: "#007AFF",
-    padding: 12,
+    padding: 16,
     borderRadius: 8,
   },
   modalButtonText: {
     color: "#fff",
     textAlign: "center",
     fontWeight: "600",
+    fontSize: 16,
+  },
+  dateInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    backgroundColor: '#f8f9fa',
+    marginVertical: 12,
+  },
+  dateLabel: {
+    position: 'absolute',
+    left: 14,
+    top: 20,
+    fontSize: 17,
+    color: '#888',
+    zIndex: 2,
+  },
+  dateLabelActive: {
+    position: 'absolute',
+    left: 14,
+    top: 2,
+    fontSize: 13,
+    color: '#007AFF',
+    fontWeight: '600',
+    zIndex: 2,
+  },
+  dateValue: {
+    fontSize: 17,
+    color: '#222',
+    marginTop: 2,
   },
 });
